@@ -13,8 +13,13 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- Java 17 everywhere: Eclipse, Maven and Tomcat 9 -->
-    <maven.compiler.release>17</maven.compiler.release>
+    <!--
+      The JDK and Tomcat run on Java 17, but the classes are compiled for Java 11.
+      EclipseLink 2.7.5 reads entity classes with an ASM version that rejects
+      class files newer than Java 13 ("Unsupported class file major version 61"),
+      so it would find no entity at all. Classes built for Java 11 run fine on 17.
+    -->
+    <maven.compiler.release>11</maven.compiler.release>
     <failOnMissingWebXml>false</failOnMissingWebXml>
   </properties>
 
