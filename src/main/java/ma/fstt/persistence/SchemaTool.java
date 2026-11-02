@@ -67,6 +67,7 @@ public final class SchemaTool {
         }
     }
 
+    /** Not closed on purpose: closing a Scanner on System.in would close System.in itself. */
     @SuppressWarnings("resource")
     private static boolean confirmer() {
         System.out.println("ATTENTION : toutes les tables de la base seront supprimées puis recréées.");
