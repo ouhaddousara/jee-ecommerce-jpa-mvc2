@@ -1,0 +1,2 @@
+Placez ici les captures d'ecran (PNG) avec exactement les noms attendus, par exemple 01-persistence-xml.png.
+Un fichier manquant n'empeche pas la compilation : un cadre "Capture a inserer" est affiche a la place.

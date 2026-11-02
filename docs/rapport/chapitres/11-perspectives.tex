@@ -1,0 +1,38 @@
+\chapter{Limites et perspectives}\label{chap:perspectives}
+
+\section{Limites connues}
+\begin{itemize}
+  \item \textbf{Pas de commande.} Le panier ne peut pas être validé (hors périmètre).
+  \item \textbf{Pas de HTTPS.} L'application est conçue pour un poste local ; en production, le cookie de session devrait
+        porter l'attribut \code{Secure} et l'application être servie en HTTPS.
+  \item \textbf{Blocage de la force brute en mémoire.} Il est perdu au redémarrage et ne se partage pas entre plusieurs
+        instances du serveur.
+  \item \textbf{Tests sans framework.} Les contrôles automatiques sont des programmes Java ordinaires, sans isolation
+        entre tests ni rapport détaillé.
+  \item \textbf{Avertissements d'EclipseLink.} Les lignes \code{[EL Severe]} sur les classes du JDK subsistent
+        (section~\ref{sec:asm}) tant que la bibliothèque n'est pas mise à jour.
+  \item \textbf{Chargement des relations.} Sans tissage, le panier d'un client est chargé avec lui.
+  \item \textbf{Politique CSP.} Elle autorise encore les styles en ligne.
+  \item \textbf{Pas de récupération de mot de passe}, ni de vérification de l'adresse e-mail.
+\end{itemize}
+
+\section{Ajouter la commande}
+La commande s'ajouterait sans toucher au modèle existant : deux nouvelles entités, \code{Commande} et \code{LigneCommande}, relieraient
+un client à des copies de lignes (produit, quantité, prix figé). La validation serait une seule transaction :
+\begin{enumerate}
+  \item relire chaque produit avec verrou optimiste ;
+  \item vérifier le stock une dernière fois ;
+  \item décrémenter les stocks ;
+  \item créer la commande à partir des lignes du panier ;
+  \item vider le panier.
+\end{enumerate}
+Si deux clients commandent le dernier exemplaire en même temps, le champ \code{@Version} du produit fait échouer le second ; le
+mécanisme est déjà en place et testé sur le panier.
+
+\section{Autres pistes}
+\begin{itemize}
+  \item migrer vers la série Jakarta (EclipseLink 4, Tomcat 10 ou 11), ce qui supprime l'incident ASM ;
+  \item introduire JUnit et une base de test en mémoire ;
+  \item ajouter la pagination et le tri dans l'administration ;
+  \item mettre en place l'internationalisation des messages.
+\end{itemize}

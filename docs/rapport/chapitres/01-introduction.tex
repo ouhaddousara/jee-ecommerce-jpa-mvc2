@@ -1,0 +1,51 @@
+\chapter{Introduction}
+
+\section{Contexte et objectif}
+Cet atelier s'inscrit dans le module Java EE du cycle ingénieur LSI de la FST de Tanger, sous la direction de
+\encadrant. Le sujet demande de construire une application web de commerce électronique en respectant deux
+contraintes d'architecture : le patron \textbf{MVC2}, où les servlets jouent le rôle de contrôleurs et les pages
+JSP celui de vues, et la persistance par \textbf{JPA}, ici avec EclipseLink, au lieu de requêtes JDBC écrites à la main
+comme à l'atelier~1.
+
+L'application, baptisée \textit{Atlas Boutique}, reprend l'identité visuelle de l'atelier~1 (barre latérale sombre,
+vert profond, safran pour l'élément courant) avec une interface plus soignée. Elle fonctionne sans aucune
+dépendance externe au moment de l'exécution : la bibliothèque jQuery est livrée avec l'application, il n'y a ni
+CDN ni police distante.
+
+\section{Périmètre retenu}
+Le sujet cite un grand nombre de classes. Il recommande lui-même de se concentrer sur le panier, la vitrine et
+l'internaute. J'ai donc retenu la « version A » du périmètre :
+
+\begin{itemize}
+  \item l'\textbf{internaute}, spécialisé en \textbf{client} et \textbf{administrateur} ;
+  \item la \textbf{vitrine} et ses \textbf{catégories} ;
+  \item les \textbf{produits} ;
+  \item le \textbf{panier} et ses \textbf{lignes}.
+\end{itemize}
+
+La \textbf{commande} n'est pas réalisée. Ce choix est assumé : une commande bien faite exige de décrémenter le
+stock dans une transaction avec contrôle de concurrence, ce qui mérite un atelier à part entière. Le
+chapitre~\ref{chap:perspectives} décrit comment elle s'ajouterait sans remettre en cause l'existant.
+
+\section{Démarche}
+Trois principes ont guidé le travail.
+\begin{enumerate}
+  \item \textbf{Décider, puis justifier.} Chaque choix structurant (stratégie d'héritage, verrouillage, gestion des
+        transactions) est expliqué par son pourquoi et comparé à au moins une alternative.
+  \item \textbf{Vérifier à chaque étape.} Chaque couche a été validée avant de passer à la suivante : tables et
+        contraintes dans MySQL, contrôles automatiques, puis parcours dans le navigateur.
+  \item \textbf{Sécurité par défaut.} Les protections (jeton CSRF, échappement, requêtes paramétrées, en-têtes) font
+        partie de la structure de l'application, elles ne sont pas ajoutées à la fin.
+\end{enumerate}
+
+\section{Taille du projet}
+Le projet compte environ 4\,000 lignes de Java pour le code de production (45 classes), 500 lignes pour les
+tests (7 classes), 830 lignes pour les vues et les gabarits JSP, et 580 lignes de CSS et de JavaScript.
+
+\section{Organisation du rapport}
+Le chapitre~\ref{chap:conception} présente la conception (classes, règles métier, choix d'héritage). Le
+chapitre~\ref{chap:env} décrit l'environnement et le projet Maven. Les chapitres~\ref{chap:persistance}
+et~\ref{chap:services} traitent de la persistance et des services. Les chapitres~\ref{chap:web} et~\ref{chap:vues}
+détaillent la couche web et les vues. La sécurité fait l'objet du chapitre~\ref{chap:securite}, les tests du
+chapitre~\ref{chap:tests} et la gestion de version du chapitre~\ref{chap:git}. Le rapport se termine par les
+limites, les perspectives et une conclusion.

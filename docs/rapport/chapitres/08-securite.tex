@@ -1,0 +1,50 @@
+\chapter{Sécurité}\label{chap:securite}
+
+La sécurité est intégrée à la structure de l'application. Le tableau~\ref{tab:menaces} associe chaque menace courante
+\cite{owaspcsrf,owasppwd} à la protection mise en place et à l'endroit où elle se trouve.
+
+\begin{table}[htbp]
+\centering
+\caption{Menaces et protections}\label{tab:menaces}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\toprule
+\textbf{Menace} & \textbf{Protection} & \textbf{Où}\\
+\midrule
+Injection SQL & Requêtes JPQL paramétrées ; saisies de recherche échappées pour \code{LIKE} & services\\
+XSS & Échappement de toute sortie (\code{c:out}) ; JSON échappé ; politique CSP sans script en ligne & vues, filtre\\
+CSRF & Jeton de session obligatoire sur tout POST (champ \code{\_csrf} ou en-tête \code{X-CSRF-Token}) & \code{SecurityFilter}\\
+Fixation de session & Changement d'identifiant de session et nouveau jeton CSRF à la connexion & \code{ClientServlet}\\
+Mots de passe volés & Hachage PBKDF2-HMAC-SHA256, sel aléatoire, 600\,000 itérations & \code{PasswordHasher}\\
+Énumération de comptes & Même message pour « e-mail inconnu » et « mauvais mot de passe » ; hachage factice quand le compte n'existe pas & \code{JpaInternauteService}\\
+Force brute & 5 échecs en 15 minutes par couple adresse IP + e-mail, puis blocage temporaire & \code{LoginThrottle}\\
+Redirection ouverte & Le retour après connexion n'accepte qu'un chemin interne de l'application & \code{BaseServlet}\\
+Accès non autorisé & Contrôle par adresse dans un filtre (\code{/panier}, \code{/admin/*}) & \code{AuthFilter}\\
+Clickjacking & \code{X-Frame-Options: DENY} et \code{frame-ancestors 'none'} & \code{SecurityFilter}\\
+Fuite d'informations & Pages d'erreur génériques ; pages sensibles en \code{Cache-Control: no-store} & \code{web.xml}, filtre\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Jeton CSRF}
+Un site malveillant peut faire envoyer au navigateur d'un client connecté une requête POST vers l'application, avec son
+cookie de session. Sans défense, l'action s'exécuterait. Le jeton, propre à la session, est inséré dans chaque
+formulaire et comparé à celui de la session à l'arrivée du POST ; le site malveillant ne peut pas le connaître. Il est changé à la connexion.
+La comparaison se fait en temps constant, pour ne rien révéler par la durée du calcul.
+
+\section{Mots de passe}
+Un mot de passe n'est jamais stocké. La base contient une empreinte au format
+\code{pbkdf2\_sha256\$itérations\$sel\$hachage}. PBKDF2 \cite{rfc8018} est volontairement lent : un attaquant qui
+volerait la base devrait payer ce coût pour chaque essai. Le nombre d'itérations est écrit dans l'empreinte, ce qui permet de
+l'augmenter plus tard sans invalider les comptes existants.
+
+\section{En-têtes et politique CSP}
+La politique de sécurité du contenu (CSP) limite l'origine des ressources : scripts uniquement depuis l'application,
+aucun script en ligne, formulaires envoyés uniquement vers l'application, pas d'intégration dans une autre page. C'est
+la raison pour laquelle le JavaScript est dans un fichier séparé et non dans les pages. Les autres en-têtes sont
+\code{X-Content-Type-Options: nosniff} et \code{Referrer-Policy: same-origin}. Le cookie de session est \code{HttpOnly} et
+la session expire après 30 minutes d'inactivité.
+
+\section{Ce que la sécurité ne couvre pas}
+Ces limites sont assumées et reprises au chapitre~\ref{chap:perspectives} : pas de HTTPS (donc pas d'attribut \code{Secure} sur le
+cookie) car l'application tourne en local ; pas de récupération de mot de passe oublié ; le blocage de la force brute est
+conservé en mémoire et disparaît au redémarrage ; la politique CSP autorise encore les styles en ligne.

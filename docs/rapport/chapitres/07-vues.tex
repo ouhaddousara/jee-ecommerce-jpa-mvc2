@@ -1,0 +1,79 @@
+\chapter{Vues JSP/JSTL et interface}\label{chap:vues}
+
+\section{Principes}
+\begin{itemize}
+  \item \textbf{Aucun scriptlet.} Le \code{web.xml} déclare \code{scripting-invalid} : une balise \code{<\% \%>} dans une JSP fait
+        échouer la compilation. Les pages n'utilisent que le langage d'expression (EL) et JSTL, ce qui empêche de glisser de la
+        logique dans la vue.
+  \item \textbf{Échappement systématique.} Toute valeur venue de l'utilisateur ou de la base passe par \code{<c:out>} ou par
+        un gabarit qui l'utilise. C'est la défense principale contre l'injection de script (XSS).
+  \item \textbf{Pas de dépendance externe.} jQuery est livré dans l'application, la police et les icônes sont locales
+        (icônes en SVG intégré). L'application fonctionne sans réseau.
+  \item \textbf{Fonctionne sans JavaScript.} Chaque action est un vrai formulaire POST ; le script ne fait qu'améliorer le
+        parcours (panier sans rechargement).
+\end{itemize}
+
+\section{Gabarits (tag files)}
+Les éléments répétés sont des fichiers de balises dans \code{WEB-INF/tags}, appelés avec le préfixe \code{t:}. Une modification
+de mise en page se fait en un seul endroit (tableau~\ref{tab:tags}).
+
+\begin{table}[htbp]
+\centering
+\caption{Gabarits JSP}\label{tab:tags}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Balise} & \textbf{Rôle}\\
+\midrule
+\code{t:layout} & Page complète : barre latérale, entête mobile, message éphémère, tiroir du panier, pied de page.\\
+\code{t:champ} & Champ de formulaire avec étiquette, aide et message d'erreur lié au champ.\\
+\code{t:csrf} & Champ caché portant le jeton anti-CSRF.\\
+\code{t:visuel} & Image du produit, ou dégradé coloré avec initiales quand il n'y en a pas.\\
+\code{t:prix}, \code{t:stock} & Formatage du prix (« 129,90 MAD ») et étiquette de stock (disponible, dernières unités, épuisé).\\
+\code{t:icone}, \code{t:vide} & Icônes SVG et page d'état vide avec illustration.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Les pages}
+Dix vues couvrent l'application : liste et fiche produit de la vitrine, connexion, inscription, panier, liste et formulaire
+des produits, liste et formulaire des catégories, page d'erreur. La page d'erreur sert pour les codes 403, 404, 405 et 500 et
+n'affiche jamais de trace technique.
+
+\fig{10-vitrine}{La vitrine : filtre par catégorie, recherche et grille de produits}{fig:vitrine}
+\fig{11-detail-produit}{Fiche produit avec étiquette de stock et choix de la quantité}{fig:detail}
+
+\section{Formulaires et validation}
+Quand un formulaire contient des erreurs, la page est réaffichée avec les valeurs saisies (sauf les mots de passe) et un
+message sous chaque champ fautif. Le test se fait côté serveur : les attributs HTML (\code{required}, \code{maxlength})
+n'améliorent que le confort, puisqu'ils peuvent être contournés.
+
+\fig{12-inscription-erreurs}{Inscription refusée : messages sous les champs invalides}{fig:inscription}
+
+\section{Mini-panier en jQuery}
+Un clic sur « Ajouter au panier » envoie le formulaire en AJAX. Le serveur répond par l'état complet du panier ; le script
+reconstruit le tiroir latéral, met à jour le badge du nombre d'articles et affiche une notification. Les boutons $+$ et $-$
+et « Retirer » du tiroir appellent la même servlet.
+
+Deux décisions de sécurité structurent le script.
+\begin{itemize}
+  \item Le texte venu du serveur est inséré avec \code{.text()}, jamais comme HTML : même un nom de produit piégé ne s'exécute pas.
+  \item Le jeton CSRF est lu dans une balise \code{meta} de la page et envoyé en en-tête \code{X-CSRF-Token}.
+\end{itemize}
+
+\fig{13-ajout-panier-tiroir}{Ajout au panier sans rechargement : tiroir latéral, badge et notification}{fig:tiroir}
+\fig{14-page-panier}{Page du panier : lignes, quantités, total et récapitulatif}{fig:panier}
+\fig{15-stock-insuffisant}{Refus d'une quantité supérieure au stock disponible}{fig:stock}
+
+\section{Administration}
+Un administrateur voit dans la barre latérale une section dédiée. La liste des produits indique l'état (en vente ou retiré)
+et propose trois actions : modifier, retirer ou remettre en vente, supprimer. Retirer un produit de la vente le conserve en base
+et dans les paniers existants ; supprimer est refusé si le produit s'y trouve encore.
+
+\fig{16-admin-produits}{Administration : liste des produits et actions}{fig:adminproduits}
+
+\section{Adaptation aux petits écrans}
+En dessous de 860 pixels de large, la barre latérale devient un menu coulissant ouvert par un bouton, la grille de produits
+passe à une colonne et les lignes du panier se réorganisent. Les animations sont désactivées pour les personnes qui
+l'ont demandé dans leur système (\code{prefers-reduced-motion}).
+
+\fig{17-vue-mobile}{Affichage sur petit écran}{fig:mobile}

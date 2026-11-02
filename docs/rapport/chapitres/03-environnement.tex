@@ -1,0 +1,91 @@
+\chapter{Environnement et projet Maven}\label{chap:env}
+
+\section{Environnement de travail}
+L'environnement est celui de l'atelier~1, aucune installation supplémentaire n'a été nécessaire
+(tableau~\ref{tab:versions}).
+
+\begin{table}[htbp]
+\centering
+\caption{Versions utilisées}\label{tab:versions}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Composant} & \textbf{Version}\\
+\midrule
+Système & Windows 11\\
+JDK & Eclipse Temurin 17.0.18\\
+Maven & 3.9\\
+Serveur d'applications & Apache Tomcat 9.0.123 (port 8081)\\
+Base de données & MySQL 8 (\code{ecommerce\_jpa})\\
+IDE & Eclipse IDE for Enterprise Java Developers\\
+API Servlet / JSP / JSTL & 4.0.1 / 2.3.3 / 1.2\\
+JPA et fournisseur & JPA 2.2, EclipseLink 2.7.5\\
+Injection de dépendances & CDI 2.0, Weld Servlet 3.1.9.Final\\
+Pilote JDBC & MySQL Connector/J 8.0.33\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Pourquoi Tomcat 9 et pas 10 ?} EclipseLink 2.7.x utilise l'espace de noms \code{javax.*}. Tomcat 10 et
+suivants sont passés à \code{jakarta.*} : les deux ne sont pas compatibles sans migration. Tomcat 9 est donc le
+bon choix pour cette version d'EclipseLink.
+
+\section{Corrections apportées au \code{pom.xml} du sujet}
+Le bloc fourni dans l'énoncé ne peut pas être copié tel quel. Trois points ont été corrigés.
+
+\begin{enumerate}
+  \item \textbf{Balises cassées} : la troisième dépendance a ses balises inversées et il manque son
+        \code{</dependency>}. Le fichier ne serait pas lu par Maven.
+  \item \textbf{Doublon JPA} : \code{org.eclipse.persistence:javax.persistence:2.0.0} et \code{eclipselink:2.7.5}
+        fournissent tous deux l'API \code{javax.persistence}, dans deux versions différentes. EclipseLink 2.7.5
+        embarque déjà JPA 2.2 : je garde \code{eclipselink} seul pour éviter un conflit de classes.
+  \item \textbf{Pilote MySQL} : l'énoncé cite \code{mysql-connector-java:8.0.12}. Par cohérence avec l'atelier~1
+        et avec MySQL~8, j'utilise \code{mysql-connector-j:8.0.33}.
+\end{enumerate}
+
+\begin{lstlisting}[language=XML,caption={Dépendances principales du pom.xml (extrait)}]
+<dependency>
+  <groupId>org.eclipse.persistence</groupId>
+  <artifactId>eclipselink</artifactId>
+  <version>2.7.5</version>
+</dependency>
+<dependency>
+  <groupId>com.mysql</groupId>
+  <artifactId>mysql-connector-j</artifactId>
+  <version>8.0.33</version>
+</dependency>
+<dependency>
+  <groupId>org.jboss.weld.servlet</groupId>
+  <artifactId>weld-servlet-shaded</artifactId>
+  <version>3.1.9.Final</version>
+</dependency>
+\end{lstlisting}
+
+Les API Servlet, JSP, \code{javax.inject} et CDI sont en portée \code{provided} : Tomcat ou Weld les fournissent
+à l'exécution, il ne faut pas les embarquer dans le WAR. JSTL et le pilote MySQL, eux, sont embarqués.
+
+\section{Incident : EclipseLink et Java 17}\label{sec:asm}
+Au premier lancement de l'outil de création du schéma, la console affichait :
+
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
+[EL Severe]: metadata: ... class was compiled with an unsupported JDK.
+java.lang.IllegalArgumentException: Unsupported class file major version 61
+\end{lstlisting}
+
+\textbf{Diagnostic.} EclipseLink 2.7.5 lit les annotations des entités avec une copie interne de la bibliothèque
+ASM, qui date de 2019. Cette version ne sait pas lire les fichiers \code{.class} produits par Java 17 (version
+majeure 61). Le projet était compilé avec \code{--release 17} ; la lecture des entités échouait, et la création des
+tables avec.
+
+\textbf{Solution retenue.} Compiler avec \code{maven.compiler.release=11} (version majeure 55, lisible par cette
+ASM) tout en continuant à exécuter sur le JDK~17. Cela a demandé de réécrire une comparaison utilisant la syntaxe
+\code{instanceof} avec variable, introduite en Java~16. Le choix inverse, exécuter Tomcat sur un JDK 11, aurait
+obligé à installer un second JDK. Une mise à jour d'EclipseLink vers la série 3.x ou 4.x demanderait de quitter
+\code{javax.*}, donc de changer aussi de Tomcat.
+
+\textbf{Message résiduel.} Au démarrage de Tomcat, la console contient encore des lignes
+\code{[EL Severe] ... The java.lang.Object class was compiled with an unsupported JDK}, pour \code{Object},
+\code{List}, \code{String}, \code{BigDecimal}... Il s'agit des classes \textit{du JDK lui-même}, que le même mécanisme
+tente de lire. Elles n'empêchent rien : la ligne suivante confirme que la connexion à la base réussit et que les
+entités sont chargées. Ce bruit est documenté ici plutôt que masqué, parce que le masquer cacherait aussi de vraies
+erreurs de métadonnées.
+

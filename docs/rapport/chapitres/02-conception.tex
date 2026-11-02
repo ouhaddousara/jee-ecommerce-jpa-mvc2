@@ -1,0 +1,91 @@
+\chapter{Conception}\label{chap:conception}
+
+\section{Acteurs et besoins}
+Trois profils utilisent l'application. Le tableau~\ref{tab:acteurs} résume ce que chacun peut faire.
+
+\begin{table}[htbp]
+\centering
+\caption{Acteurs et fonctionnalités}\label{tab:acteurs}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Acteur} & \textbf{Fonctionnalités}\\
+\midrule
+Visiteur & Parcourir la vitrine, filtrer par catégorie, rechercher, ouvrir la fiche d'un produit, créer un compte, se connecter.\\
+Client & Tout ce que fait le visiteur, plus : ajouter un produit au panier, modifier une quantité, retirer une ligne, vider le panier.\\
+Administrateur & Créer, modifier, retirer de la vente et supprimer des produits ; gérer les catégories.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Diagramme de classes}
+La figure~\ref{fig:classes} (page suivante) donne le modèle du domaine. Les relations suivent la logique du sujet.
+
+\begin{itemize}
+  \item \textbf{Héritage} : \code{Client} et \code{Administrateur} spécialisent la classe abstraite \code{Internaute}.
+  \item \textbf{Client -- Panier}, 1 à 1 : un client possède un seul panier, créé en même temps que lui. Un
+        administrateur n'en a pas.
+  \item \textbf{Panier -- LignePanier}, composition : une ligne n'existe que dans son panier ; supprimer le panier
+        supprime ses lignes.
+  \item \textbf{LignePanier -- Produit}, association : la ligne référence un produit mais ne le possède pas.
+  \item \textbf{Vitrine -- Catégorie -- Produit}, agrégations : la vitrine présente des catégories, qui regroupent
+        des produits.
+  \item \textbf{Administrateur -- Produit}, dépendance : l'administrateur gère le catalogue, sans lien persistant.
+\end{itemize}
+
+\begin{landscape}
+\thispagestyle{empty}
+\centering
+\resizebox{\linewidth}{!}{\input{figures/diagramme-classes-tikz}}
+\captionof{figure}{Diagramme de classes de la version A (panier, vitrine, internaute)}\label{fig:classes}
+\end{landscape}
+
+\section{Règles métier}
+Les règles qui protègent la cohérence du panier sont écrites \textbf{dans l'entité \code{Panier}} et non dans les
+servlets ou les services. Une règle placée dans le domaine ne peut pas être oubliée par un nouvel écran : quel que
+soit l'appelant, la même vérification s'applique. Le tableau~\ref{tab:regles} les liste avec l'endroit où elles sont
+imposées une seconde fois, en base, quand c'est possible.
+
+\begin{table}[htbp]
+\centering
+\caption{Règles métier et double protection}\label{tab:regles}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\toprule
+\textbf{N°} & \textbf{Règle} & \textbf{Garde-fou en base}\\
+\midrule
+R1 & Une quantité de ligne est comprise entre 1 et 99. & \code{CHECK quantite >= 1}\\
+R2 & Seul un produit actif peut être ajouté au panier. & ---\\
+R3 & La quantité d'une ligne ne dépasse pas le stock disponible. & \code{CHECK stock >= 0}\\
+R4 & Ajouter un produit déjà présent fusionne la ligne (les quantités s'additionnent). & \code{UNIQUE (panier, produit)}\\
+R5 & Le prix de la ligne est figé au moment de l'ajout. & \code{CHECK prix\_unitaire >= 0}\\
+R6 & Le total est la somme des sous-totaux, calculée en \code{BigDecimal}. & ---\\
+R7 & L'adresse électronique est unique, normalisée en minuscules. & \code{UNIQUE (email)}\\
+R8 & La référence d'un produit est unique, en majuscules. & \code{UNIQUE (reference)}\\
+R9 & Un produit présent dans un panier ne peut pas être supprimé (on le retire de la vente). & clé étrangère\\
+R10 & Une catégorie qui contient des produits ne peut pas être supprimée. & clé étrangère\\
+R11 & Un internaute a obligatoirement un rôle (\code{CLIENT} ou \code{ADMIN}). & \code{NOT NULL} + \code{CHECK}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Choix de la stratégie d'héritage}
+JPA propose trois façons de stocker une hiérarchie. Le tableau~\ref{tab:heritage} les compare pour notre cas.
+
+\begin{table}[htbp]
+\centering
+\caption{Stratégies d'héritage JPA}\label{tab:heritage}
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+\textbf{Stratégie} & \textbf{Avantages} & \textbf{Inconvénients}\\
+\midrule
+\code{SINGLE\_TABLE} & Une seule table, aucune jointure, authentification par une requête simple. & Colonnes propres aux sous-classes nullables ; une colonne discriminante.\\
+\code{JOINED} & Modèle normalisé, pas de colonnes inutiles. & Jointure à chaque lecture, plus de tables.\\
+\code{TABLE\_PER\_CLASS} & Chaque classe a sa table complète. & Requêtes polymorphes par \code{UNION}, clés à gérer entre tables.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+J'ai retenu \textbf{\code{SINGLE\_TABLE}}. La hiérarchie est petite (deux sous-classes qui ajoutent chacune un
+ou deux champs), et la lecture la plus fréquente est la connexion : retrouver un internaute par son adresse sans
+savoir à l'avance s'il est client ou administrateur. Avec une table unique, c'est une seule requête sans jointure.
+Le défaut de la stratégie, la colonne discriminante laissée nullable par EclipseLink, est corrigé par une contrainte
+\code{NOT NULL} et un \code{CHECK} (chapitre~\ref{chap:persistance}).

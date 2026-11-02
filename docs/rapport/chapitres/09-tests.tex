@@ -1,0 +1,80 @@
+\chapter{Tests et validation}\label{chap:tests}
+
+\section{Stratégie}
+Deux niveaux se complètent.
+\begin{enumerate}
+  \item \textbf{Contrôles automatiques} : une classe \code{Verifications} lance \nbChecks{} vérifications Java, sans
+        framework de test, depuis Eclipse (\textit{Run As, Java Application}). Le choix d'écrire de petites classes de contrôle
+        plutôt que d'introduire JUnit garde le projet sans dépendance supplémentaire ; le chapitre~\ref{chap:perspectives}
+        indique que JUnit serait la suite logique.
+  \item \textbf{Parcours manuel} dans le navigateur, avec un scénario par règle de gestion (nominal et limite).
+\end{enumerate}
+
+\section{Contrôles automatiques}
+Le tableau~\ref{tab:checks} indique ce que couvre chaque classe.
+
+\begin{table}[htbp]
+\centering
+\caption{Classes de contrôle}\label{tab:checks}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Classe} & \textbf{Contenu}\\
+\midrule
+\code{PanierCheck} & Règles du panier (ajout, quantités 1 à 99, produit inactif, stock, fusion de lignes, prix figé, total) et cohérence des relations entre entités.\\
+\code{UtilChecks} & Hachage des mots de passe, formatage des montants, limitation des tentatives de connexion (avec horloge simulée).\\
+\code{ServiceChecks} & Validation des formulaires (e-mail, mot de passe, référence, prix\ldots) et pagination.\\
+\code{WebChecks} & Redirection de retour sûre (contre la redirection ouverte), jeton CSRF, JSON du mini-panier (échappement).\\
+\code{JpaChecks} & Traduction des erreurs MySQL en messages métier et échappement des jokers du \code{LIKE}.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ces contrôles ne se connectent pas à la base : ils testent la logique pure (entités, validation, hachage, JSON), ce qui les rend
+rapides et reproductibles sur n'importe quel poste. Ce qui touche réellement MySQL (mapping, cascades, contraintes, verrou optimiste) est
+vérifié autrement : par l'inspection directe de la base (chapitre~\ref{chap:persistance}) et par le parcours manuel ci-dessous.
+Chaque contrôle affiche une ligne, et le bilan indique le nombre de succès et d'échecs ; un échec termine le programme avec un code
+d'erreur.
+
+\fig{18-verifications-console}{Résultat de la classe Verifications}{fig:verifications}
+
+\section{Parcours manuel}
+Le tableau~\ref{tab:manuel} liste les scénarios exécutés dans le navigateur avec les comptes de démonstration. Les comptes
+sont \code{yasmine@example.com} et \code{omar@example.com} (clients, mot de passe \code{Client\#2026}) et \code{admin@example.com}
+(mot de passe \code{Admin\#2026}).
+
+\begin{table}[htbp]
+\centering
+\caption{Scénarios de test manuels}\label{tab:manuel}
+\small
+\begin{tabularx}{\linewidth}{@{}lXXl@{}}
+\toprule
+\textbf{N°} & \textbf{Action} & \textbf{Résultat attendu} & \textbf{Règle}\\
+\midrule
+T1 & Ouvrir la vitrine, choisir une catégorie, rechercher « clavier » & Liste filtrée, compteur à jour & ---\\
+T2 & Omar ajoute un produit en stock & Tiroir ouvert, badge à 1, total correct & R4, R5\\
+T3 & Omar ajoute le même produit une seconde fois & Une seule ligne, quantité 2 & R4\\
+T4 & Omar ajoute \code{MAI-002} (stock 0) & Bouton désactivé ; une requête forcée est refusée & R3\\
+T5 & Omar ajoute 4 unités de \code{INF-003} (stock 3) & Refus avec message de stock & R3\\
+T6 & Omar saisit la quantité 0 puis 100 & Refus dans les deux cas & R1\\
+T7 & Ajouter \code{MOD-003} (retiré de la vente) par requête forcée & Refus « plus disponible » & R2\\
+T8 & Un visiteur non connecté ajoute au panier & Redirection vers la connexion & accès\\
+T9 & Inscription avec une adresse déjà utilisée & Message d'erreur sous le champ & R7\\
+T10 & Inscription avec un mot de passe « abcdefgh » & Refus (pas de chiffre) & validation\\
+T11 & Connexion avec 6 mots de passe faux & Blocage temporaire au 6\textsuperscript{e} essai & force brute\\
+T12 & Un client ouvre \code{/admin/produits} & Page 403 & accès\\
+T13 & L'administrateur modifie le prix d'un produit présent dans un panier & Le prix de la ligne du panier ne change pas & R5\\
+T14 & Supprimer un produit présent dans un panier & Refus, suggestion de le retirer de la vente & R9\\
+T15 & Supprimer une catégorie qui contient des produits & Refus & R10\\
+T16 & Deux onglets modifient le même produit ; enregistrer les deux & Le second est refusé (conflit de version) & verrou optimiste\\
+T17 & Rafraîchir la page après un ajout & Aucun ajout en double (redirection après POST) & PRG\\
+T18 & Envoyer un POST sans jeton (outil externe) & Refus 403 & CSRF\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\fig{19-donnees-mysql-apres-action}{Contrôle dans MySQL après une action : la ligne de panier correspond à ce qui est affiché}{fig:mysqlapres}
+
+\section{Ce que les tests ont révélé}
+La première exécution sur Tomcat a montré que EclipseLink, à la demande de \code{create-or-extend-tables}, tentait de recréer des
+contraintes existantes (codes MySQL 1061 et 1826). L'avertissement ne bloquait rien mais montrait un défaut de conception :
+l'application ne doit pas toucher au schéma. Le réglage \code{jpa.ddl=none} est donc maintenant celui du fonctionnement normal.

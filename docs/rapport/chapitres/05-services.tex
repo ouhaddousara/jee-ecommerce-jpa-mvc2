@@ -1,0 +1,92 @@
+\chapter{Services métier et injection CDI}\label{chap:services}
+
+\section{Pourquoi une couche de services}
+Les servlets ne parlent jamais à JPA. Elles appellent quatre interfaces, qui décrivent \textit{ce que fait} l'application
+sans dire \textit{comment}. Le tableau~\ref{tab:services} les présente.
+
+\begin{table}[htbp]
+\centering
+\caption{Interfaces de service}\label{tab:services}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Interface} & \textbf{Responsabilité}\\
+\midrule
+\code{InternauteService} & Inscrire un client, authentifier, retrouver un internaute.\\
+\code{CatalogueService} & Lecture publique : vitrine active, catégories, produits par page de 9, recherche, fiche produit.\\
+\code{GestionCatalogueService} & Administration : produits et catégories (création, modification, retrait, suppression).\\
+\code{PanierService} & Consulter, ajouter, modifier une quantité, retirer, vider.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ce découpage a deux effets. Les servlets restent courtes : lire les paramètres, appeler un service, choisir la
+vue. Et les tests peuvent remplacer un service par une version simulée sans base de données (c'est ce que fait la classe
+\code{ServiceChecks}).
+
+\section{Transactions centralisées}\label{sec:transactions}
+Sans serveur JTA, chaque opération doit ouvrir un \code{EntityManager}, une transaction, valider ou annuler, puis fermer.
+Répété dans chaque méthode, ce code est une source d'oublis (une transaction jamais refermée, une connexion qui
+fuit). Un composant unique, \code{TransactionRunner}, en est responsable. Il offre deux méthodes : \code{read} pour les
+lectures, sans transaction, et \code{write} pour les écritures.
+
+\lstinputlisting[language=Java,caption={TransactionRunner.write : validation, annulation, fermeture},basicstyle=\ttfamily\scriptsize]{extraits/TransactionRunner-write.txt}
+
+Le \code{finally} garantit la fermeture quoi qu'il arrive. L'exception SQL brute n'est jamais montrée à
+l'utilisateur : \code{SqlErrors.traduire} la convertit en message métier lisible. Les codes MySQL traités sont
+1062 (doublon), 1451 et 1452 (clé étrangère), 1048 (valeur obligatoire manquante), 1406 (valeur trop longue), 3819 et
+4025 (contrainte \code{CHECK}), ainsi que l'échec de verrouillage optimiste, reconnu par son nom de classe.
+
+\section{Règles métier : à un seul endroit}
+Les quantités, le stock et les produits inactifs sont contrôlés dans l'entité \code{Panier}, pas dans le service.
+Le service se contente d'orchestrer : charger le client, charger le produit, appeler la méthode du panier, valider.
+
+\lstinputlisting[language=Java,caption={Panier.ajouterProduit : fusion de lignes, prix figé},basicstyle=\ttfamily\scriptsize]{extraits/Panier-ajouterProduit.txt}
+
+Un changement dans une règle (par exemple porter la quantité maximale de 99 à 50) se fait donc dans une constante unique.
+
+\section{Validation des saisies}
+La classe \code{Validation} collecte les erreurs au lieu de s'arrêter à la première. Le formulaire renvoyé à l'utilisateur
+peut ainsi signaler tous les champs invalides d'un coup. Les contrôles couvrent le texte obligatoire, la longueur, le
+format de l'e-mail, la complexité du mot de passe (8 caractères minimum, une lettre et un chiffre), le téléphone, la
+référence produit (mise en majuscules), l'URL d'image (\code{https} uniquement) et les nombres décimaux ou entiers.
+L'exception \code{ValidationException} porte la table des erreurs par champ.
+
+\section{Requêtes}
+Toutes les requêtes utilisent des paramètres liés, jamais de concaténation de saisies. Deux détails méritent d'être notés.
+
+\begin{itemize}
+  \item \textbf{Recherche par \code{LIKE}.} Les caractères \code{\%} et \code{\_} saisis par l'utilisateur sont
+        échappés, avec \code{!} comme caractère d'échappement. Le choix de \code{!} et non de la barre oblique inverse est
+        volontaire : sous MySQL, la barre oblique inverse a déjà un sens dans les chaînes littérales, ce qui rend
+        l'échappement ambigu.
+  \item \textbf{Requêtes dynamiques.} Les vérifications d'unicité sont construites selon les champs fournis, plutôt que
+        d'utiliser \code{(:param IS NULL OR ...)}, une forme dont le comportement avec des paramètres nuls varie selon le pilote.
+\end{itemize}
+
+\section{Injection de dépendances avec CDI}
+\subsection{Pourquoi CDI sur Tomcat}
+Tomcat n'est pas un serveur d'applications complet : il ne fournit pas CDI. L'injection par \code{@Inject} est
+pourtant la manière propre de relier servlets, services et gestionnaire de transactions sans \code{new} partout. L'implémentation
+de référence, Weld, existe en version « servlet » qui s'embarque dans le WAR.
+
+\subsection{Mise en place}
+Trois fichiers suffisent.
+\begin{itemize}
+  \item \code{WEB-INF/beans.xml}, en mode \code{annotated} : seules les classes portant une annotation de portée
+        deviennent des beans, ce qui limite l'analyse.
+  \item \code{META-INF/context.xml} : déclare à Tomcat la ressource \code{BeanManager}.
+  \item \code{WEB-INF/web.xml} : la référence \code{resource-env-ref} correspondante.
+\end{itemize}
+Au démarrage de Tomcat, la ligne \code{WELD-ENV-001100} (« Tomcat 7+ detected, CDI injection will be available in Servlets,
+Filters and Listeners ») confirme que l'injection fonctionne.
+
+\subsection{La fabrique d'EntityManager}
+La fabrique d'\code{EntityManager} coûte cher à créer et peut être partagée entre les fils d'exécution ; l'\code{EntityManager}
+lui-même ne le peut pas. Un producteur CDI crée donc \textbf{une} fabrique pour toute l'application, et un observateur
+l'initialise dès le démarrage.
+
+\lstinputlisting[language=Java,caption={EntityManagerFactoryProducer},basicstyle=\ttfamily\scriptsize]{extraits/EntityManagerFactoryProducer.txt}
+
+L'initialisation dès le démarrage est une décision de confort : un mot de passe erroné ou une base arrêtée apparaît dans
+la console de Tomcat à l'ouverture de l'application, et non à la requête du premier visiteur. La méthode annotée
+\code{@Disposes} ferme la fabrique à l'arrêt, ce qui évite de laisser des connexions ouvertes lors d'un redéploiement.

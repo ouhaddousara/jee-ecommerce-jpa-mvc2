@@ -1,0 +1,122 @@
+\chapter{Couche de persistance}\label{chap:persistance}
+
+\section{Les entités et leurs correspondances}
+Huit classes sont persistantes (\code{Internaute}, \code{Client}, \code{Administrateur}, \code{Vitrine},
+\code{Categorie}, \code{Produit}, \code{Panier}, \code{LignePanier}). Le tableau~\ref{tab:mapping} récapitule les
+décisions de mapping ; le \textit{pourquoi} de chacune est donné ensuite.
+
+\begin{table}[htbp]
+\centering
+\caption{Décisions de mapping}\label{tab:mapping}
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+\textbf{Sujet} & \textbf{Décision} & \textbf{Raison}\\
+\midrule
+Accès aux données & Sur les champs (\code{@Id} sur l'attribut) & Les accesseurs peuvent contenir de la logique (normalisation de l'e-mail) sans être appelés par JPA.\\
+Montants & \code{BigDecimal}, échelle 2 & Pas d'erreur d'arrondi, contrairement à \code{double}.\\
+Concurrence & \code{@Version} sur \code{Produit} & Détecte deux modifications simultanées sans verrou en base.\\
+Client -- Panier & \code{@OneToOne}, cascade \code{ALL}, \code{orphanRemoval} & Le panier naît et meurt avec son client.\\
+Panier -- Lignes & \code{@OneToMany} avec \code{@CascadeOnDelete} & Supprimer un panier supprime ses lignes, y compris au niveau SQL (\code{ON DELETE CASCADE}).\\
+Ligne -- Produit & \code{@ManyToOne}, sans cascade & Une ligne référence un produit, elle n'en est pas propriétaire.\\
+Listes exposées & Copies en lecture seule & Aucun code externe ne modifie une collection sans passer par les règles métier.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Le verrouillage optimiste.} Deux administrateurs peuvent ouvrir le même produit, ou un client peut
+ajouter au panier le dernier exemplaire pendant qu'on modifie son stock. Un verrou pessimiste bloquerait des lignes
+en base pendant la réflexion d'un utilisateur ; ce n'est pas acceptable dans une application web. Avec
+\code{@Version}, chaque mise à jour incrémente un numéro, et une écriture fondée sur un numéro périmé échoue. L'application
+traduit cet échec en message clair (« Cet élément a été modifié par quelqu'un d'autre... »). Dans les opérations
+de panier, le produit est lu avec \code{LockModeType.OPTIMISTIC} : si son numéro change avant la validation, la
+transaction échoue au lieu de laisser passer une quantité calculée sur un stock périmé.
+
+\textbf{Le prix figé.} Une ligne de panier recopie le prix du produit au moment de l'ajout. Si l'administrateur
+change le prix ensuite, le panier du client ne bouge pas, ce qui évite qu'un total change sous ses yeux.
+
+\section{L'unité de persistance}
+Le fichier \code{persistence.xml} ne contient ni mot de passe ni adresse de base. Il décrit seulement ce qui ne varie
+pas d'une machine à l'autre.
+
+\lstinputlisting[language=XML,caption={persistence.xml (sans les commentaires)},basicstyle=\ttfamily\scriptsize]{extraits/persistence.txt}
+
+Les choix notables sont les suivants.
+\begin{itemize}
+  \item \code{RESOURCE\_LOCAL} : Tomcat n'est pas un serveur JTA, l'application gère donc ses transactions
+        elle-même (section~\ref{sec:transactions}).
+  \item Liste explicite des classes : l'analyse automatique du classpath n'est pas fiable sous Tomcat.
+  \item \code{shared-cache-mode NONE} : pas de cache partagé, donc ce que l'on voit dans MySQL est exactement ce que
+        l'application lit. C'est un choix de simplicité, adapté à un projet pédagogique.
+  \item \code{eclipselink.weaving=false} : il n'y a pas d'agent de tissage sous Tomcat. Conséquence connue,
+        signalée par un avertissement au démarrage : les relations \code{@OneToOne} ne sont pas chargées
+        paresseusement.
+\end{itemize}
+
+\textbf{Identifiants hors du dépôt.} L'adresse de la base, l'utilisateur et le mot de passe viennent d'un fichier
+\code{db.properties}, ignoré par Git. Le dépôt ne contient qu'un modèle, \code{db.properties.example}. Une fuite d'identifiants
+dans un historique Git est difficile à effacer : la précaution est donc prise dès le premier commit. La classe
+\code{PersistenceConfig} lit ce fichier et construit les propriétés de la fabrique d'\code{EntityManager}.
+
+\section{Création du schéma et données de test}
+Le schéma n'est pas laissé au hasard du démarrage de l'application. Un outil en ligne de commande, \code{SchemaTool},
+le crée explicitement :
+\begin{enumerate}
+  \item il demande de taper \code{RESET} avant de supprimer et recréer les tables (option \code{--yes} pour les scripts) ;
+  \item il applique les contraintes \code{CHECK} de \code{constraints.sql}, que JPA ne sait pas exprimer ;
+  \item il charge les données de démonstration : une vitrine, quatre catégories, douze produits dont un en rupture
+        (\code{MAI-002}), un à trois exemplaires (\code{INF-003}) et un retiré de la vente (\code{MOD-003}), un administrateur
+        et deux clients.
+\end{enumerate}
+Séparer la création du schéma du démarrage de l'application évite qu'un redéploiement modifie la base. Pour la même
+raison, \code{jpa.ddl} vaut \code{none} lors de l'exécution normale.
+
+\fig{01-persistence-xml}{Le fichier persistence.xml ouvert dans Eclipse (onglet Source)}{fig:persistencexml}
+\fig{02-schema-tool-console}{Sortie de SchemaTool : contraintes appliquées, données chargées, bilan}{fig:schematool}
+
+\section{Vérification dans MySQL}
+La base a été inspectée directement, sans passer par l'application, pour valider le mapping avant d'écrire la
+moindre servlet.
+
+\begin{itemize}
+  \item Les six tables attendues existent (figure~\ref{fig:showtables}) : \code{categorie}, \code{internaute},
+        \code{ligne\_panier}, \code{panier}, \code{produit}, \code{vitrine}.
+  \item \code{produit.prix} est un \code{decimal(10,2)}, \code{produit.version} un \code{bigint}, et
+        \code{reference} porte une contrainte d'unicité (figure~\ref{fig:describe}).
+  \item Dans \code{internaute}, les colonnes propres aux sous-classes (\code{adresse}, \code{telephone},
+        \code{matricule}, \code{panier\_id}) sont nullables : c'est la contrepartie de \code{SINGLE\_TABLE}.
+  \item \code{ligne\_panier} porte \code{ON DELETE CASCADE}, l'unicité (\code{panier\_id}, \code{produit\_id}) et deux
+        \code{CHECK} (figure~\ref{fig:showcreate}).
+  \item Les accents sont intacts (« mécanique », « Écharpe »), ce qui valide la chaîne UTF-8 complète, de la
+        base jusqu'à l'affichage (figures~\ref{fig:internautes} et~\ref{fig:produits}).
+\end{itemize}
+
+\fig{03-show-tables}{Les six tables créées}{fig:showtables}
+\fig{04-describe-tables}{Structure des tables produit et internaute}{fig:describe}
+\fig{05-show-create-ligne-panier}{Définition de ligne\_panier : clé unique, cascade et contraintes CHECK}{fig:showcreate}
+\fig{06-donnees-internautes}{Les internautes de démonstration et leur rôle}{fig:internautes}
+\fig{07-donnees-produits}{Les douze produits de démonstration}{fig:produits}
+
+\section{Les contraintes refusent bien les données incorrectes}
+Trois écritures invalides ont été tentées à la main. La base les refuse toutes, ce qui montre qu'elle protège ses
+données même si une règle était oubliée dans le code Java (tableau~\ref{tab:refus}).
+
+\begin{table}[htbp]
+\centering
+\caption{Écritures refusées par la base}\label{tab:refus}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Tentative} & \textbf{Code MySQL} & \textbf{Contrainte}\\
+\midrule
+Mettre un stock à $-1$ & 3819 & \code{chk\_produit\_stock}\\
+Insérer un second internaute avec la même adresse & 1062 & \code{uk\_internaute\_email}\\
+Supprimer un produit présent dans un panier & 1451 & clé étrangère de \code{ligne\_panier}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\fig{08-contraintes-refusees}{Les trois refus et leurs codes d'erreur}{fig:refus}
+
+\textbf{Une observation corrigée.} La première vérification a montré que \code{type\_internaute}, la colonne
+discriminante, était nullable : EclipseLink la crée ainsi. Un insertion manuelle pouvait donc créer un utilisateur
+sans rôle. Le fichier \code{constraints.sql} impose désormais \code{NOT NULL} et un \code{CHECK} limitant les valeurs à
+\code{CLIENT} et \code{ADMIN} (règle R11).

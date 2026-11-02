@@ -1,0 +1,12 @@
+\chapter{Conclusion}
+
+Ce travail livre une application de boutique en ligne complète sur le périmètre choisi : vitrine, comptes, panier et administration du catalogue, avec persistance JPA sur MySQL, architecture MVC2 et injection CDI sur Tomcat.
+
+Trois enseignements se dégagent.
+\begin{itemize}
+  \item \textbf{Placer chaque règle au bon endroit.} Les règles du panier vivent dans l'entité, les transactions dans un composant unique, l'accès dans un filtre. Chaque règle n'a qu'un point de modification, et la base répète les plus importantes avec ses contraintes.
+  \item \textbf{Vérifier chaque couche avant la suivante.} Inspecter MySQL avant d'écrire la première servlet a permis de découvrir la colonne de rôle nullable, et lire les journaux de démarrage a révélé l'incompatibilité entre EclipseLink 2.7.5 et Java 17, puis la configuration de schéma trop active.
+  \item \textbf{Intégrer la sécurité à la structure.} Jeton CSRF, échappement, requêtes paramétrées, hachage lent et en-têtes sont des éléments de départ.
+\end{itemize}
+
+La commande, le HTTPS et un véritable cadre de tests restent les prolongements naturels. Le modèle actuel est prêt à les accueillir.

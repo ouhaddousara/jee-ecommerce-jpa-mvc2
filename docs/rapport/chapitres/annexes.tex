@@ -1,0 +1,52 @@
+\chapter{Arborescence du projet}
+
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
+jee-ecommerce-jpa-mvc2/
+  pom.xml
+  README.md
+  .gitignore
+  docs/                      class diagram (Mermaid and TikZ)
+  src/main/java/ma/fstt/
+    entities/                Internaute, Client, Administrateur, Vitrine,
+                             Categorie, Produit, Panier, LignePanier
+    exception/               MetierException, StockInsuffisantException,
+                             ValidationException
+    util/                    PasswordHasher, Money, LoginThrottle
+    persistence/             PersistenceConfig, SchemaTool
+    service/                 service interfaces, Validation, forms, PageResultat
+    jpa/                     TransactionRunner, SqlErrors, EntityManagerFactoryProducer,
+                             Jpa*Service implementations, Requetes
+    web/                     BaseServlet, 5 servlets, SecurityFilter, AuthFilter,
+                             Flash, SessionUser, PanierJson
+  src/main/resources/
+    META-INF/persistence.xml
+    db/constraints.sql
+    db.properties.example    (db.properties is ignored by Git)
+  src/main/webapp/
+    index.jsp
+    META-INF/context.xml
+    WEB-INF/web.xml, beans.xml
+    WEB-INF/tags/            layout, champ, csrf, visuel, prix, stock, icone, vide
+    WEB-INF/views/           vitrine/, client/, panier/, admin/, erreur.jsp
+    assets/css/app.css
+    assets/js/app.js, vendor/jquery-3.7.1.min.js
+  src/test/java/ma/fstt/     Verifications and check classes
+\end{lstlisting}
+
+\chapter{Comptes et données de démonstration}
+
+\begin{table}[htbp]
+\centering
+\caption{Comptes de démonstration}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Rôle} & \textbf{Adresse} & \textbf{Mot de passe}\\
+\midrule
+Administrateur & \code{admin@example.com} & \code{Admin\#2026}\\
+Client (panier rempli) & \code{yasmine@example.com} & \code{Client\#2026}\\
+Client (panier vide) & \code{omar@example.com} & \code{Client\#2026}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ces comptes n'existent que dans les données de test créées par \code{SchemaTool} ; ils ne doivent jamais être utilisés tels quels hors d'un poste de développement.

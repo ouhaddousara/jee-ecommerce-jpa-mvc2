@@ -1,0 +1,67 @@
+\chapter{Couche web : contrôleurs MVC2}\label{chap:web}
+
+\section{Le patron MVC2 appliqué}
+Dans MVC2, le contrôleur est une servlet. Elle reçoit la requête, appelle le modèle (les services), dépose le résultat
+dans la requête, puis transmet à une JSP qui se contente d'afficher. Les JSP sont placées sous \code{WEB-INF/views} :
+le navigateur ne peut donc jamais les demander directement, seule une servlet peut les afficher.
+
+J'ai retenu \textbf{une servlet par domaine de gestion}, avec un paramètre \code{action} qui distingue les opérations
+(tableau~\ref{tab:servlets}). Une servlet par action multiplierait les classes ; un contrôleur unique deviendrait trop long.
+
+\begin{table}[htbp]
+\centering
+\caption{Contrôleurs, adresses et actions}\label{tab:servlets}
+\begin{tabularx}{\linewidth}{@{}llXl@{}}
+\toprule
+\textbf{Servlet} & \textbf{Adresse} & \textbf{Actions} & \textbf{Accès}\\
+\midrule
+\code{VitrineServlet} & \code{/vitrine} & GET : \code{liste}, \code{detail} & public\\
+\code{ClientServlet} & \code{/client} & GET : \code{connexion}, \code{inscription} ; POST : \code{connexion}, \code{inscription}, \code{deconnexion} & public\\
+\code{PanierServlet} & \code{/panier} & GET : \code{voir}, \code{resume} ; POST : \code{ajouter}, \code{modifier}, \code{retirer}, \code{vider} & client\\
+\code{ProduitServlet} & \code{/admin/produits} & GET : \code{liste}, \code{nouveau}, \code{editer} ; POST : \code{enregistrer}, \code{basculer}, \code{supprimer} & admin\\
+\code{CategorieServlet} & \code{/admin/categories} & GET : \code{liste}, \code{nouveau}, \code{editer} ; POST : \code{enregistrer}, \code{supprimer} & admin\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Une règle simple s'applique partout : \textbf{une action qui modifie des données passe par POST}, jamais par GET. Un lien
+ou une image placés sur un autre site ne peuvent ainsi pas déclencher une suppression.
+
+\section{Classe de base}
+Les cinq servlets héritent de \code{BaseServlet}, qui factorise ce qui se répète : lecture de l'action, lecture
+sécurisée des identifiants et des entiers, affichage d'une vue, redirection, réponse JSON et reconnaissance d'une
+requête AJAX (en-tête \code{X-Requested-With}). Une erreur de saisie (identifiant non numérique, par exemple) y est
+traitée une fois, au lieu d'être dispersée.
+
+\section{Redirection après POST et messages éphémères}
+Après un POST réussi, l'application ne renvoie pas directement une page : elle \textbf{redirige} vers une page GET.
+C'est le motif Post/Redirect/Get. Sans lui, un rafraîchissement du navigateur renverrait le formulaire, et ajouterait
+une seconde fois le produit au panier.
+
+La redirection fait perdre la requête, donc le message de confirmation (« Produit ajouté ») doit survivre un aller-retour.
+La classe \code{Flash} le range en session, et un filtre le transfère à la requête suivante, puis l'efface : le
+message ne s'affiche qu'une fois.
+
+\section{Filtres}
+Deux filtres s'exécutent avant les servlets, dans cet ordre.
+
+\begin{enumerate}
+  \item \code{SecurityFilter} sur toutes les adresses : encodage UTF-8, en-têtes de sécurité, contrôle du jeton CSRF
+        sur les requêtes POST, transfert du message éphémère.
+  \item \code{AuthFilter} sur \code{/panier} et \code{/admin/*} : exige un client connecté pour le panier, un administrateur
+        pour l'administration.
+\end{enumerate}
+
+L'accès est contrôlé \textbf{par adresse, dans un filtre}, et non dans chaque servlet. Une nouvelle page d'administration est
+protégée dès qu'elle est placée sous \code{/admin}, sans qu'il faille y penser. Un visiteur non connecté est redirigé vers la
+connexion, avec mémorisation de la page demandée ; un client qui tente d'ouvrir l'administration reçoit une erreur 403.
+
+\section{Réponses AJAX}
+Le mini-panier appelle \code{PanierServlet} en AJAX. La servlet reconnaît la requête et répond en JSON ; sans AJAX, elle redirige
+comme n'importe quelle page. Le JSON est écrit à la main, sans bibliothèque, car le contenu est petit : état du
+panier, nombre d'articles, total déjà formaté, lignes. Les montants arrivent sous forme de texte formaté : le navigateur n'a
+\textbf{aucun calcul d'argent} à faire. Les caractères \code{<}, \code{>} et \code{\&} sont échappés dans le JSON, au cas
+où il serait un jour inséré dans du HTML.
+
+Pour un visiteur non connecté, la réponse est un JSON \code{connexion requise} avec l'adresse de la page de connexion,
+que le script suit.
