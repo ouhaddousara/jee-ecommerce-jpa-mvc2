@@ -73,11 +73,14 @@
 
 % ---------- Figure with fallback frame when the screenshot is not there yet ----------
 % \fig{file-without-extension}{caption}{label}
+% Looks for figures/<file>.png, then .jpg, then .jpeg.
+\newcommand{\figimage}[1]{\includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{#1}}
 \newcommand{\fig}[3]{%
   \begin{figure}[htbp]\centering
-  \IfFileExists{figures/#1.png}{%
-    \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/#1.png}}{%
-    \fbox{\parbox[c][4.5cm][c]{0.92\linewidth}{\centering\itshape Capture à insérer : figures/#1.png}}}
+  \IfFileExists{figures/#1.png}{\figimage{figures/#1.png}}{%
+  \IfFileExists{figures/#1.jpg}{\figimage{figures/#1.jpg}}{%
+  \IfFileExists{figures/#1.jpeg}{\figimage{figures/#1.jpeg}}{%
+    \fbox{\parbox[c][4.5cm][c]{0.92\linewidth}{\centering\itshape Capture à insérer : figures/#1.png}}}}}
   \caption{#2}\label{#3}
   \end{figure}}
 
@@ -90,14 +93,14 @@
 \begin{titlepage}
 \thispagestyle{empty}
 \begin{tikzpicture}[remember picture,overlay]
-  \fill[atlasink] (current page.north west) rectangle ([yshift=-9.2cm]current page.north east);
-  \fill[atlasteal] ([yshift=-9.2cm]current page.north west) rectangle ([yshift=-9.5cm]current page.north east);
-  \fill[atlassaffron] ([yshift=-9.2cm]current page.north west) rectangle ([xshift=5cm,yshift=-9.5cm]current page.north west);
+  \fill[atlasink] (current page.north west) rectangle ([yshift=-11.2cm]current page.north east);
+  \fill[atlasteal] ([yshift=-11.2cm]current page.north west) rectangle ([yshift=-11.5cm]current page.north east);
+  \fill[atlassaffron] ([yshift=-11.2cm]current page.north west) rectangle ([xshift=5cm,yshift=-11.5cm]current page.north west);
 \end{tikzpicture}
 \vspace*{1.2cm}
 {\color{white}
 {\small\textcolor{atlassaffron}{\bfseries FACULT\'E DES SCIENCES ET TECHNIQUES DE TANGER}}\\[2pt]
-{\small Cycle ing\'enieur LSI}\\[2.2cm]
+{\small Cycle ing\'enieur LSI}\\[1.4cm]
 {\fontsize{30}{34}\selectfont\bfseries Atelier JEE 2\par}
 \vspace{6pt}
 {\Large Application web e-commerce\\ bas\'ee sur MVC2 et JPA\par}
