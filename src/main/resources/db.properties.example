@@ -10,7 +10,7 @@ db.password=
 # Schema generation at startup:
 # none | create-tables | create-or-extend-tables | drop-and-create-tables
 # (a full reset is done on purpose with SchemaTool, so keep create-or-extend-tables here)
-jpa.ddl=create-or-extend-tables
+jpa.ddl=none
 
 # OFF | SEVERE | WARNING | INFO | CONFIG | FINE   (FINE prints every SQL statement)
 jpa.log=INFO
