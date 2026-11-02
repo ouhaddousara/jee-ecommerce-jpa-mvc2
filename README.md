@@ -4,6 +4,8 @@ Atelier JEE 2 (FST Tanger, LSI, Pr. Elaachak). Une petite boutique en ligne cons
 
 Périmètre : internaute (client ou administrateur), vitrine, catégories, produits, panier. La commande n'est pas réalisée (voir *Limites*).
 
+> **Rapport du projet** : [docs/rapport/rapport_atelier_jee2.pdf](docs/rapport/rapport_atelier_jee2.pdf) (conception, persistance, services, sécurité, tests, limites). Les sources LaTeX sont dans [`docs/rapport`](docs/rapport).
+
 ## Fonctionnalités
 
 | Profil | Ce qu'il peut faire |
@@ -88,8 +90,22 @@ src/main/java/ma/fstt/
   persistence/   configuration JPA, outil de création du schéma
 src/main/webapp/WEB-INF/
   views/         pages JSP        tags/   gabarits (layout, champ, csrf, ...)
-docs/            diagramme de classes, rapport LaTeX
+docs/            diagramme de classes
+docs/rapport/    rapport (PDF, sources LaTeX, captures)
 ```
+
+## Rapport
+
+Le rapport détaille les décisions et leurs raisons, avec des captures de chaque étape :
+
+| Contenu | Où |
+|---|---|
+| Rapport au format PDF | [`docs/rapport/rapport_atelier_jee2.pdf`](docs/rapport/rapport_atelier_jee2.pdf) |
+| Sources LaTeX (à compiler avec pdfLaTeX, deux fois) | [`docs/rapport/main.tex`](docs/rapport/main.tex) et `docs/rapport/chapitres/` |
+| Captures d'écran | `docs/rapport/figures/` |
+| Diagramme de classes (Mermaid et TikZ) | `docs/` |
+
+Chapitres : conception, environnement et Maven, persistance, services et CDI, couche web MVC2, vues, sécurité, tests, gestion de version, limites et perspectives.
 
 ## Décisions de conception
 
@@ -109,4 +125,4 @@ EclipseLink 2.7.5 lit les entités avec une version d'ASM qui ne comprend pas le
 
 ## Limites
 
-Pas de commande (validation du panier), pas de HTTPS ni d'attribut `Secure` sur le cookie de session, limitation des tentatives conservée en mémoire, pas de récupération de mot de passe. Pistes détaillées dans le rapport.
+Pas de commande (validation du panier), pas de HTTPS ni d'attribut `Secure` sur le cookie de session, limitation des tentatives conservée en mémoire, pas de récupération de mot de passe. Pistes détaillées dans le [rapport](docs/rapport/rapport_atelier_jee2.pdf).
